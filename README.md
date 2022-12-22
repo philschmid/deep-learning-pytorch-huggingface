@@ -10,6 +10,6 @@ This repository contains instructions/examples/tutorials for getting started wit
 
 Before we can start make sure you have met the following requirements
 
-* AWS Account with quota for [DL1 instance type](https://aws.amazon.com/ec2/instance-types/dl1/)
+* AWS Account with quota
 * [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) installed
 * AWS IAM user [configured in CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) with permission to create and manage ec2 instances
