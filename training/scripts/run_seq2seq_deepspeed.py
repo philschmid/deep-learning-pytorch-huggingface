@@ -1,23 +1,17 @@
-import gc
 import os
-import sys
-import threading
 import argparse
-import transformers
-import datasets
 import numpy as np
-import torch
-from accelerate import Accelerator
-from torch.utils.data import DataLoader
-from transformers import AutoModelForSeq2SeqLM,DataCollatorForSeq2Seq, AutoTokenizer, get_linear_schedule_with_warmup, set_seed
+from transformers import (
+    AutoModelForSeq2SeqLM,
+    DataCollatorForSeq2Seq,
+    AutoTokenizer,
+    set_seed,
+)
 from datasets import load_from_disk
 
-from peft import LoraConfig, TaskType, get_peft_model, get_peft_model_state_dict
-from tqdm import tqdm
 import evaluate
 import nltk
 import numpy as np
-from nltk.tokenize import sent_tokenize
 
 from huggingface_hub import HfFolder
 from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments
@@ -28,12 +22,12 @@ nltk.download("punkt", quiet=True)
 metric = evaluate.load("rouge")
 # evaluation generation args
 gen_kwargs = {
-      "early_stopping": True,
-      "length_penalty": 2.0,
-      "max_new_tokens": 50,
-      "min_length": 30,
-      "no_repeat_ngram_size": 3,
-      "num_beams": 4
+    "early_stopping": True,
+    "length_penalty": 2.0,
+    "max_new_tokens": 50,
+    "min_length": 30,
+    "no_repeat_ngram_size": 3,
+    "num_beams": 4,
 }
 
 
@@ -54,7 +48,9 @@ def parse_arge():
     # add model id and dataset path argument
     parser.add_argument("--model_id", type=str, default="google/flan-t5-xl", help="Model id to use for training.")
     parser.add_argument("--dataset_path", type=str, default="data", help="Path to the already processed dataset.")
-    parser.add_argument("--repository_id", type=str, default=None, help="Hugging Face Repository id for uploading models")
+    parser.add_argument(
+        "--repository_id", type=str, default=None, help="Hugging Face Repository id for uploading models"
+    )
     # add training hyperparameters for epochs, batch size, learning rate, and seed
     parser.add_argument("--epochs", type=int, default=3, help="Number of epochs to train for.")
     parser.add_argument("--per_device_train_batch_size", type=int, default=8, help="Batch size to use for training.")
@@ -64,7 +60,12 @@ def parse_arge():
     parser.add_argument("--lr", type=float, default=3e-3, help="Learning rate to use for training.")
     parser.add_argument("--seed", type=int, default=42, help="Seed to use for training.")
     parser.add_argument("--deepspeed", type=str, default=None, help="Path to deepspeed config file.")
-    parser.add_argument("--hf_token", type=str, default=HfFolder.get_token(), help="Token to use for uploading models to Hugging Face Hub.")
+    parser.add_argument(
+        "--hf_token",
+        type=str,
+        default=HfFolder.get_token(),
+        help="Token to use for uploading models to Hugging Face Hub.",
+    )
     parser.add_argument(
         "--mixed_precision",
         type=str,
@@ -76,29 +77,26 @@ def parse_arge():
     )
     args = parser.parse_known_args()
     return args
- 
- 
+
+
 def training_function(args):
-    # set seed 
+    # set seed
     set_seed(args.seed)
-    
+
     # load dataset from disk and tokenizer
     train_dataset = load_from_disk(os.path.join(args.dataset_path, "train"))
     eval_dataset = load_from_disk(os.path.join(args.dataset_path, "eval"))
     tokenizer = AutoTokenizer.from_pretrained(args.model_id)
     # load model from the hub
     model = AutoModelForSeq2SeqLM.from_pretrained(args.model_id)
-    
+
     # we want to ignore tokenizer pad token in the loss
     label_pad_token_id = -100
     # Data collator
     data_collator = DataCollatorForSeq2Seq(
-        tokenizer,
-        model=model,
-        label_pad_token_id=label_pad_token_id,
-        pad_to_multiple_of=8
+        tokenizer, model=model, label_pad_token_id=label_pad_token_id, pad_to_multiple_of=8
     )
-    
+
     # Define compute metrics function
     def compute_metrics(eval_preds):
         preds, labels = eval_preds
@@ -117,7 +115,7 @@ def training_function(args):
         prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
         result["gen_len"] = np.mean(prediction_lens)
         return result
-    
+
     # Define training args
     output_dir = args.repository_id if args.repository_id else args.model_id.split("/")[-1]
     training_args = Seq2SeqTrainingArguments(
@@ -127,7 +125,7 @@ def training_function(args):
         predict_with_generate=True,
         generation_max_length=args.generation_max_length,
         generation_num_beams=args.generation_num_beams,
-        fp16=False, # Overflows with fp16
+        fp16=False,  # Overflows with fp16
         learning_rate=args.lr,
         num_train_epochs=args.epochs,
         deepspeed=args.deepspeed,
@@ -156,10 +154,10 @@ def training_function(args):
         data_collator=data_collator,
         compute_metrics=compute_metrics,
     )
-    
+
     # Start training
     trainer.train()
-    
+
     # Save our tokenizer and create model card
     tokenizer.save_pretrained(output_dir)
     trainer.create_model_card()
@@ -169,8 +167,9 @@ def training_function(args):
 
 
 def main():
-    args,_ = parse_arge()
-    training_function(args)  
+    args, _ = parse_arge()
+    training_function(args)
+
 
 if __name__ == "__main__":
     main()
