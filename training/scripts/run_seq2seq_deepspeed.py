@@ -48,9 +48,9 @@ def parse_arge():
     # add model id and dataset path argument
     parser.add_argument("--model_id", type=str, default="google/flan-t5-xl", help="Model id to use for training.")
     parser.add_argument("--dataset_path", type=str, default="data", help="Path to the already processed dataset.")
-    parser.add_argument(
-        "--repository_id", type=str, default=None, help="Hugging Face Repository id for uploading models"
-    )
+    #parser.add_argument(
+    #    "--repository_id", type=str, default=None, help="Hugging Face Repository id for uploading models"
+    #)
     # add training hyperparameters for epochs, batch size, learning rate, and seed
     parser.add_argument("--epochs", type=int, default=3, help="Number of epochs to train for.")
     parser.add_argument("--per_device_train_batch_size", type=int, default=8, help="Batch size to use for training.")
@@ -117,7 +117,8 @@ def training_function(args):
         return result
 
     # Define training args
-    output_dir = args.repository_id if args.repository_id else args.model_id.split("/")[-1]
+    # output_dir = args.repository_id if args.repository_id else args.model_id.split("/")[-1]
+    output_dir = args.model_id.split("/")[-1]
     training_args = Seq2SeqTrainingArguments(
         output_dir=output_dir,
         per_device_train_batch_size=args.per_device_train_batch_size,
@@ -139,10 +140,10 @@ def training_function(args):
         load_best_model_at_end=True,
         # push to hub parameters
         report_to="tensorboard",
-        push_to_hub=True if args.repository_id else False,
-        hub_strategy="every_save",
-        hub_model_id=args.repository_id if args.repository_id else None,
-        hub_token=args.hf_token,
+        #push_to_hub=True if args.repository_id else False,
+        #hub_strategy="every_save",
+        #hub_model_id=args.repository_id if args.repository_id else None,
+        #hub_token=args.hf_token,
     )
 
     # Create Trainer instance
@@ -162,8 +163,8 @@ def training_function(args):
     tokenizer.save_pretrained(output_dir)
     trainer.create_model_card()
     # Push the results to the hub
-    if args.repository_id:
-        trainer.push_to_hub()
+    #if args.repository_id:
+    #    trainer.push_to_hub()
 
 
 def main():
