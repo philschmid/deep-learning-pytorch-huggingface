@@ -8,7 +8,7 @@ from transformers import (
     set_seed,
 )
 from datasets import load_from_disk
-
+import torch
 import evaluate
 import nltk
 import numpy as np
@@ -48,9 +48,9 @@ def parse_arge():
     # add model id and dataset path argument
     parser.add_argument("--model_id", type=str, default="google/flan-t5-xl", help="Model id to use for training.")
     parser.add_argument("--dataset_path", type=str, default="data", help="Path to the already processed dataset.")
-    # parser.add_argument(
-    #    "--repository_id", type=str, default=None, help="Hugging Face Repository id for uploading models"
-    # )
+    parser.add_argument(
+        "--repository_id", type=str, default=None, help="Hugging Face Repository id for uploading models"
+    )
     # add training hyperparameters for epochs, batch size, learning rate, and seed
     parser.add_argument("--epochs", type=int, default=3, help="Number of epochs to train for.")
     parser.add_argument("--per_device_train_batch_size", type=int, default=8, help="Batch size to use for training.")
@@ -60,20 +60,18 @@ def parse_arge():
     parser.add_argument("--lr", type=float, default=3e-3, help="Learning rate to use for training.")
     parser.add_argument("--seed", type=int, default=42, help="Seed to use for training.")
     parser.add_argument("--deepspeed", type=str, default=None, help="Path to deepspeed config file.")
+    parser.add_argument("--gradient_checkpointing", type=bool, default=True, help="Path to deepspeed config file.")
+    parser.add_argument(
+        "--bf16",
+        type=bool,
+        default=True if torch.cuda.get_device_capability()[0] == 8 else False,
+        help="Whether to use bf16.",
+    )
     parser.add_argument(
         "--hf_token",
         type=str,
         default=HfFolder.get_token(),
         help="Token to use for uploading models to Hugging Face Hub.",
-    )
-    parser.add_argument(
-        "--mixed_precision",
-        type=str,
-        default="no",
-        choices=["no", "fp16", "bf16"],
-        help="Whether to use mixed precision. Choose"
-        "between fp16 and bf16 (bfloat16). Bf16 requires PyTorch >= 1.10."
-        "and an Nvidia Ampere GPU.",
     )
     args = parser.parse_known_args()
     return args
@@ -85,11 +83,14 @@ def training_function(args):
 
     # load dataset from disk and tokenizer
     train_dataset = load_from_disk(os.path.join(args.dataset_path, "train"))
+    train_dataset.select(range(1000))
     eval_dataset = load_from_disk(os.path.join(args.dataset_path, "eval"))
+    eval_dataset.select(range(1000))
     tokenizer = AutoTokenizer.from_pretrained(args.model_id)
     # load model from the hub
     model = AutoModelForSeq2SeqLM.from_pretrained(
-        args.model_id, use_cache=False  # this is needed for gradient checkpointing
+        args.model_id,
+        use_cache=False if args.gradient_checkpointing else True,  # this is needed for gradient checkpointing
     )
 
     # we want to ignore tokenizer pad token in the loss
@@ -128,11 +129,12 @@ def training_function(args):
         predict_with_generate=True,
         generation_max_length=args.generation_max_length,
         generation_num_beams=args.generation_num_beams,
-        fp16=False,  # Overflows with fp16
+        fp16=False,  # T5 overflows with fp16
+        bf16=args.bf16,  # Use BF16 if available
         learning_rate=args.lr,
         num_train_epochs=args.epochs,
         deepspeed=args.deepspeed,
-        gradient_checkpointing=True,
+        gradient_checkpointing=args.gradient_checkpointing,
         # logging & evaluation strategies
         logging_dir=f"{output_dir}/logs",
         logging_strategy="steps",
@@ -143,10 +145,10 @@ def training_function(args):
         load_best_model_at_end=True,
         # push to hub parameters
         report_to="tensorboard",
-        # push_to_hub=True if args.repository_id else False,
-        # hub_strategy="every_save",
-        # hub_model_id=args.repository_id if args.repository_id else None,
-        # hub_token=args.hf_token,
+        push_to_hub=True if args.repository_id else False,
+        hub_strategy="every_save",
+        hub_model_id=args.repository_id if args.repository_id else None,
+        hub_token=args.hf_token,
     )
 
     # Create Trainer instance
@@ -166,8 +168,8 @@ def training_function(args):
     tokenizer.save_pretrained(output_dir)
     trainer.create_model_card()
     # Push the results to the hub
-    # if args.repository_id:
-    #    trainer.push_to_hub()
+    if args.repository_id:
+        trainer.push_to_hub()
 
 
 def main():
