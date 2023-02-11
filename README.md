@@ -13,3 +13,14 @@ Before we can start make sure you have met the following requirements
 * AWS Account with quota
 * [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) installed
 * AWS IAM user [configured in CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) with permission to create and manage ec2 instances
+
+
+### Commands 
+
+```bash
+echo 'export PATH="${HOME}/.local/bin:$PATH"' >> ${HOME}/.bashrc 
+````
+
+```bash
+watch -n0.1 nvidia-smi
+```

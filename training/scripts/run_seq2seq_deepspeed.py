@@ -83,9 +83,7 @@ def training_function(args):
 
     # load dataset from disk and tokenizer
     train_dataset = load_from_disk(os.path.join(args.dataset_path, "train"))
-    train_dataset.select(range(1000))
     eval_dataset = load_from_disk(os.path.join(args.dataset_path, "eval"))
-    eval_dataset.select(range(1000))
     tokenizer = AutoTokenizer.from_pretrained(args.model_id)
     # load model from the hub
     model = AutoModelForSeq2SeqLM.from_pretrained(
