@@ -188,55 +188,6 @@ model.print_trainable_parameters()
 #
 # We are going to use `evaluate` library to evaluate the `rogue` score.
 
-# In[ ]:
-
-
-import evaluate
-import nltk
-import numpy as np
-from nltk.tokenize import sent_tokenize
-
-nltk.download("punkt")
-
-# Metric
-metric = evaluate.load("rouge")
-
-
-# helper function to postprocess text
-def postprocess_text(preds, labels):
-    preds = [pred.strip() for pred in preds]
-    labels = [label.strip() for label in labels]
-
-    # rougeLSum expects newline after each sentence
-    preds = ["\n".join(sent_tokenize(pred)) for pred in preds]
-    labels = ["\n".join(sent_tokenize(label)) for label in labels]
-
-    return preds, labels
-
-
-def compute_metrics(eval_preds):
-    preds, labels = eval_preds
-    if isinstance(preds, tuple):
-        preds = preds[0]
-    decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
-    # Replace -100 in the labels as we can't decode them.
-    labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
-    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
-
-    # Some simple post-processing
-    decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
-
-    result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
-    result = {k: round(v * 100, 4) for k, v in result.items()}
-    prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
-    result["gen_len"] = np.mean(prediction_lens)
-    return result
-
-
-# Next is to create a `DataCollator` that will take care of padding our inputs and labels. We will use the `DataCollatorForSeq2Seq` from the 🤗 Transformers library.
-
-# In[ ]:
-
 
 from transformers import DataCollatorForSeq2Seq
 
@@ -255,22 +206,21 @@ data_collator = DataCollatorForSeq2Seq(
 
 from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments
 
-output_dir = "lora-flan-t5-xxl"
+output_dir="lora-flan-t5-xxl"
 
 # Define training args
 training_args = Seq2SeqTrainingArguments(
     output_dir=output_dir,
-    auto_find_batch_size=True,
-    predict_with_generate=True,
-    learning_rate=1e-3,  # higher learning rate
+		auto_find_batch_size=True,
+    learning_rate=1e-3, # higher learning rate
     num_train_epochs=5,
     logging_dir=f"{output_dir}/logs",
     logging_strategy="steps",
-    logging_steps=100,
-    evaluation_strategy="epoch",
-    save_strategy="epoch",
+    logging_steps=500,
+    save_strategy="no",
     report_to="tensorboard",
 )
+
 
 # Create Trainer instance
 trainer = Seq2SeqTrainer(
@@ -278,11 +228,8 @@ trainer = Seq2SeqTrainer(
     args=training_args,
     data_collator=data_collator,
     train_dataset=tokenized_dataset["train"],
-    eval_dataset=tokenized_dataset["test"],
-    compute_metrics=compute_metrics,
 )
 model.config.use_cache = False  # silence the warnings. Please re-enable for inference!
-
 
 # Let's now train our model and run the cells below. Note that for T5, some layers are kept in `float32` for stability purposes.
 
@@ -292,15 +239,9 @@ model.config.use_cache = False  # silence the warnings. Please re-enable for inf
 # train model
 trainer.train()
 
-
-# The training took ~10:36:00 and achieved an `rouge1` score of `47.23`. The training cost was `~13.22$` for 10h of training. For comparison a [full fine-tuning of flan-t5-base achieved a rouge1 score of 47.23](https://www.philschmid.de/fine-tune-flan-t5) and a full fine-tuning on FLAN-T5-XXL with the same duration (10h) requires 8x A100 40GBs and costs ~322$.
-#
-# We can save our model for later use. We will save it to disk for now, but you could also upload it to the [Hugging Face Hub](https://huggingface.co/docs/hub/main) using the `model.push_to_hub` method.
-
-# In[ ]:
-
-
 # Save our LoRA model & tokenizer results
-peft_model_id = "results"
-trainer.save_model(peft_model_id)
+peft_model_id="results"
+trainer.model.save_pretrained(peft_model_id)
 tokenizer.save_pretrained(peft_model_id)
+# if you want to save the base model to call
+# trainer.model.base_model.save_pretrained(peft_model_id)
