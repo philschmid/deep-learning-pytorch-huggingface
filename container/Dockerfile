@@ -1,5 +1,3 @@
-# docker run --gpus all -it --rm nvidia-11-8
-# docker pull 
 FROM nvcr.io/nvidia/pytorch:22.12-py3
 
 # Versions
