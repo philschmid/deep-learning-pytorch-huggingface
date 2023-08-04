@@ -5,6 +5,7 @@ from torch import nn
 import warnings
 import transformers
 from transformers.models.llama.modeling_llama import apply_rotary_pos_emb
+from peft.tuners.lora import LoraLayer
 
 try:
     from flash_attn.flash_attn_interface import flash_attn_varlen_qkvpacked_func
@@ -61,13 +62,6 @@ def forward(
         value_states = torch.cat([past_key_value[1], value_states], dim=2)
 
     past_key_value = (key_states, value_states) if use_cache else None
-
-    # PEFT Int4 support
-    query_states, key_states, value_states = [x.to(torch.bfloat16) for x in [query_states, key_states, value_states]]
-
-    assert all(
-        (i.dtype in [torch.float16, torch.bfloat16] for i in (query_states, key_states, value_states))
-    ), "shit not all types"
 
     # Flash attention codes from
     # https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attention.py
@@ -127,3 +121,19 @@ def unplace_flash_attn_with_attn():
 
     print("Reloading llama model, unpatching flash attention")
     importlib.reload(transformers.models.llama.modeling_llama)
+
+
+# Adapted from https://github.com/tmm1/axolotl/blob/2eda9e02a9d15a7a3f92b41f257d9844d72fc220/src/axolotl/utils/models.py#L338
+def upcast_layer_for_flash_attention(model, torch_dtype):
+    # LlamaRMSNorm layers are in fp32 after kbit_training, so we need to
+    # convert them back to fp16/bf16 for flash-attn compatibility.
+    for name, module in model.named_modules():
+        if isinstance(module, LoraLayer):
+            module.to(torch_dtype)
+        if "norm" in name:
+            module.to(torch_dtype)
+        if "lm_head" in name or "embed_tokens" in name:
+            if hasattr(module, "weight"):
+                module.to(torch_dtype)
+
+    return model
