@@ -38,9 +38,6 @@ def forward(
 
     attention_mask: [bsz, q_len]
     """
-    if self.config.pretraining_tp != 1:
-        raise ValueError("Only model.config.pretraining_tp=1 is supported but is", self.config.pretraining_tp)
-
     bsz, q_len, _ = hidden_states.size()
     if output_attentions:
         warnings.warn("Output attentions is not supported for patched `LlamaAttention`, returning `None` instead.")
