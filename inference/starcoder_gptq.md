@@ -38,6 +38,12 @@ load test with `k6`
 k6 run starcoder_load.js
 ```
 
+or with docker 
+```bash
+docker run --net=host -v $(pwd)/starcoder_load.js:/load.js loadimpact/k6:latest run /load.js
+``````
+
+
 ### Results A10G 
 
 | VU  | GPU  | time per token (p95) | queue time (p95) |
@@ -46,3 +52,15 @@ k6 run starcoder_load.js
 | 5   | A10G | 65ms                 | 105ms            |
 | 10  | A10G | 104ms                | 120ms            |
 | 20  | A10G | 203ms                | 5110ms           |
+| 1   | A100 | 30ms                 | 1ms              |
+| 5   | A100 | 59ms                 | 64ms               |
+| 10  | A100 | 50ms                   | 51ms               |
+| 20  | A100 | 59ms                   | 49ms               |
+| 40  | A100 | 73ms                   | 1000ms               |
+| 60  | A100 | 59ms                   | 113ms               |
+| 80  | A100 | 92ms                   | 165ms               |
+| 100  | A100 | 72ms                   | 1111ms               |
+| 120  | A100 | 77ms                   | 1270ms               |
+| 140  | A100 | _request start failing_                     | _request start failing_               |
+
+
