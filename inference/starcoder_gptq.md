@@ -40,9 +40,9 @@ k6 run starcoder_load.js
 
 ### Results A10G 
 
-| VU  | GPU  | time per token (p95) | queue time |
-| --- | ---- | -------------------- | ---------- |
-| 1   | A10G | 30ms                 | 1ms        |
-| 5   | A10G | 65ms                 | 105ms      |
-| 10  | A10G | 104ms                | 120ms      |
-
+| VU  | GPU  | time per token (p95) | queue time (p95) |
+| --- | ---- | -------------------- | ---------------- |
+| 1   | A10G | 30ms                 | 1ms              |
+| 5   | A10G | 65ms                 | 105ms            |
+| 10  | A10G | 104ms                | 120ms            |
+| 20  | A10G | 203ms                | 5110ms           |

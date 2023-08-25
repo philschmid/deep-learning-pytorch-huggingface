@@ -21,7 +21,7 @@ export const options = {
     load_test: {
       executor: 'constant-vus',
       duration: '60s',
-      vus: 10,
+      vus: 20,
     },
   },
 };
