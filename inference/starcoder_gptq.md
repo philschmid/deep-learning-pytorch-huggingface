@@ -46,7 +46,7 @@ docker run --net=host -v $(pwd)/starcoder_load.js:/load.js loadimpact/k6:latest 
 
 ### Inference Results
 
-We used `k6` with `constant-vus` executor, the `constant-vus`` executor, a fixed number of VUs execute as many iterations as possible for a specified amount of time.
+We used `k6` with `constant-vus` executor, a fixed number of VUs execute as many iterations as possible for a specified amount of time.
 
 
 | VU  | GPU  | time per token (p95) | queue time (p95) |
