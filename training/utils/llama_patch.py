@@ -4,7 +4,7 @@ import torch
 from torch import nn
 import warnings
 import transformers
-from transformers.models.llama.modeling_llama import apply_rotary_pos_emb, repeat_kv
+from transformers.models.llama.modeling_llama import apply_rotary_pos_emb
 from peft.tuners.lora import LoraLayer
 
 try:
@@ -38,17 +38,16 @@ def forward(
 
     attention_mask: [bsz, q_len]
     """
-    bsz, q_len, _ = hidden_states.size()
     if output_attentions:
         warnings.warn("Output attentions is not supported for patched `LlamaAttention`, returning `None` instead.")
 
-    query_states = self.q_proj(hidden_states)
-    key_states = self.k_proj(hidden_states)
-    value_states = self.v_proj(hidden_states)
+    bsz, q_len, _ = hidden_states.size()
 
-    query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
-    key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
-    value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+    query_states = self.q_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+    key_states = self.k_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+    value_states = self.v_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+    # [bsz, q_len, nh, hd]
+    # [bsz, nh, q_len, hd]
 
     kv_seq_len = key_states.shape[-2]
     if past_key_value is not None:
@@ -63,9 +62,6 @@ def forward(
         value_states = torch.cat([past_key_value[1], value_states], dim=2)
 
     past_key_value = (key_states, value_states) if use_cache else None
-    # repeat k/v heads if n_kv_heads < n_heads
-    key_states = repeat_kv(key_states, self.num_key_value_groups)
-    value_states = repeat_kv(value_states, self.num_key_value_groups)
 
     # Flash attention codes from
     # https://github.com/HazyResearch/flash-attention/blob/main/flash_attn/flash_attention.py
@@ -96,13 +92,7 @@ def forward(
             "b s (h d) -> b s h d",
             h=nheads,
         )
-    
-        output = output.transpose(1, 2).contiguous()
-        output = output.reshape(bsz, q_len, self.hidden_size)
-
-    attn_output = self.o_proj(output)
-
-    return attn_output, None, past_key_value
+    return self.o_proj(rearrange(output, "b s h d -> b s (h d)")), None, past_key_value
 
 
 # Disable the transformation of the attention mask in LlamaModel as the flash attention
