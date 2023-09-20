@@ -4,6 +4,7 @@ from typing import cast
 import os
 import subprocess
 from typing import Optional
+import torch
 
 from transformers import HfArgumentParser, TrainingArguments, Trainer
 from utils.peft_utils import SaveDeepSpeedPeftModelCallback, create_and_prepare_model
@@ -39,12 +40,14 @@ class ScriptArguments:
 
 
 def training_function(script_args:ScriptArguments, training_args:TrainingArguments):
-    # Load and create peft model
-    model, peft_config, tokenizer = create_and_prepare_model(script_args)
-    model.config.use_cache = False
 
     # Load processed dataset from disk
     dataset = load_from_disk(script_args.dataset_path)
+    
+    # Load and create peft model
+    model, peft_config, tokenizer = create_and_prepare_model(script_args.model_id,training_args, script_args)
+    model.config.use_cache = False
+
 
     # Create trainer and add callbacks
     trainer = Trainer(model=model, args=training_args, train_dataset=dataset)
@@ -63,21 +66,36 @@ def training_function(script_args:ScriptArguments, training_args:TrainingArgumen
         unwrapped_model.save_pretrained(training_args.output_dir, state_dict=state_dict)
     trainer.accelerator.wait_for_everyone()
 
+    # TODO: add merge adapters
     # Save everything else on main process
     if trainer.args.process_index == 0:
-        print("Sharding model if >10GB...")
-        # FSDP/DeepSpeed save the model as a single `pytorch_model.bin` file, so we need to shard it.
-        # We run this in a subprocess to avoid interference from the accelerators.
-        subprocess.run(
-            [
-                "python",
-                "shard_checkpoint.py",
-                f"--output_dir={training_args.output_dir}",
-            ],
-            check=True,
-        )
-        if "training_args.bin" in os.listdir(training_args.output_dir):
-            os.remove(os.path.join(training_args.output_dir, "training_args.bin"))
+        if script_args.merge_adapters:
+            # merge adapter weights with base model and save
+            # save int 4 model
+            trainer.model.save_pretrained(training_args.output_dir, safe_serialization=False)
+            # clear memory
+            del model
+            del trainer
+            torch.cuda.empty_cache()
+
+            from peft import AutoPeftModelForCausalLM
+
+            # load PEFT model in fp16
+            model = AutoPeftModelForCausalLM.from_pretrained(
+                training_args.output_dir,
+                low_cpu_mem_usage=True,
+                torch_dtype=torch.float16,
+            )  
+            # Merge LoRA and base model and save
+            model = model.merge_and_unload()        
+            model.save_pretrained(
+                training_args.output_dir, safe_serialization=True, max_shard_size="8GB"
+            )
+        else:
+            trainer.model.save_pretrained(
+                training_args.output_dir, safe_serialization=True
+            )
+
         # save tokenizer 
         tokenizer.save_pretrained(training_args.output_dir)
 

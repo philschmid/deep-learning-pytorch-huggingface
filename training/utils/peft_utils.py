@@ -35,35 +35,37 @@ class SaveDeepSpeedPeftModelCallback(TrainerCallback):
 
 
 
-def create_and_prepare_model(model_id, args):
-    if args.use_flash_attn:
+def create_and_prepare_model(model_id:str, training_args:TrainingArguments, script_args):
+    if script_args.use_flash_attn:
         replace_falcon_attn_with_flash_attn()
         replace_llama_attn_with_flash_attn()
 
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
-        use_cache=not args.use_gradient_checkpointing,
+        use_cache=not training_args.gradient_checkpointing,
     )
+    print("model loaded")
 
     # find all linear modules in model for lora
     target_modules = find_all_linear_names(model)
 
     # create lora config
     peft_config = LoraConfig(
-        lora_alpha=args.lora_alpha,
-        lora_dropout=args.lora_dropout,
-        r=args.lora_r,
+        lora_alpha=script_args.lora_alpha,
+        lora_dropout=script_args.lora_dropout,
+        r=script_args.lora_r,
         bias="none",
         task_type="CAUSAL_LM",
         target_modules=target_modules,
     )
     # enable gradient checkpointing
-    if args.use_gradient_checkpointing:
+    if training_args.gradient_checkpointing:
         model.gradient_checkpointing_enable()
 
 
     # pre-process the model by upcasting the layer norms in float 32 for
     # Adapted from https://github.com/tmm1/axolotl/blob/2eda9e02a9d15a7a3f92b41f257d9844d72fc220/src/axolotl/utils/models.py#L338
+    print("pre-processing model for peft")
     for name, module in model.named_modules():
         if isinstance(module, LoraLayer):
             module = module.to(torch.bfloat16)
@@ -74,6 +76,7 @@ def create_and_prepare_model(model_id, args):
                 module = module.to(torch.bfloat16)
 
     # initialize peft model
+    print("initializing peft model")
     model = get_peft_model(model, peft_config)
 
     # logger.info parameters
