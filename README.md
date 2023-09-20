@@ -7,7 +7,10 @@ This repository contains instructions/examples/tutorials for getting started wit
 * [Getting started with Pytorch 2.0 and Hugging Face Transformers](./training/pytorch-2-0-bert-text-classification.ipynb) 
 * [Fine-tune FLAN-T5 XL/XXL using DeepSpeed & Hugging Face Transformers](./training/deepseed-flan-t5-summarization.ipynb) 
 * [Fine-tune FLAN-T5 for chat & dialogue summarization](./training/flan-t5-samsum-summarization.ipynb) 
-* [Getting started with Transformers and TPU using PyTorch](./training/accelerate-tpu-bert-text-classification.ipynb) 
+* [Getting started with Transformers and TPU using PyTorch](./training/accelerate-tpu-bert-text-classification.ipynb)
+* [Fine-tune Falcon 180B with DeepSpeed ZeRO, LoRA & Flash Attention](./training/deepseed-falcon-180b-lora-fa.ipynb)
+* [Extended Guide: Instruction-tune Llama 2](./training/instruction-tune-llama-2-int4.ipynb)
+* [Quantize open LLMs using optimum and GPTQ](./training/optimize-llama-2-gptq.ipynb)
 
 ## Requirements
 
