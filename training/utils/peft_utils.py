@@ -34,15 +34,11 @@ class SaveDeepSpeedPeftModelCallback(TrainerCallback):
         return control
 
 
-
-def create_and_prepare_model(model_id:str, training_args:TrainingArguments, script_args):
-    if script_args.use_flash_attn:
-        replace_falcon_attn_with_flash_attn()
-        replace_llama_attn_with_flash_attn()
-
+def create_and_prepare_model(model_id: str, training_args: TrainingArguments, script_args):
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         use_cache=not training_args.gradient_checkpointing,
+        use_flash_attention_2=script_args.use_flash_attn,
     )
     print("model loaded")
 
@@ -61,7 +57,6 @@ def create_and_prepare_model(model_id:str, training_args:TrainingArguments, scri
     # enable gradient checkpointing
     if training_args.gradient_checkpointing:
         model.gradient_checkpointing_enable()
-
 
     # pre-process the model by upcasting the layer norms in float 32 for
     # Adapted from https://github.com/tmm1/axolotl/blob/2eda9e02a9d15a7a3f92b41f257d9844d72fc220/src/axolotl/utils/models.py#L338
@@ -87,6 +82,7 @@ def create_and_prepare_model(model_id:str, training_args:TrainingArguments, scri
     tokenizer.pad_token = tokenizer.eos_token
 
     return model, peft_config, tokenizer
+
 
 def find_all_linear_names(model):
     cls = torch.nn.Linear
