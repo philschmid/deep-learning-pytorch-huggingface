@@ -27,6 +27,7 @@ model = AutoModelForCausalLM.from_pretrained(
 )
 tokenizer = AutoTokenizer.from_pretrained(model_id)
 tokenizer.pad_token = tokenizer.eos_token
+tokenizer.truncation_side = 'right' # to prevent cutting off last generation
 
 prompt_length=1024
 max_seq_length=1512
