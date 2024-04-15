@@ -21,6 +21,9 @@ from peft import LoraConfig
 from trl import (
    SFTTrainer)
 
+LLAMA_2_CHAT_TEMPLATE="{% if messages[0]['role'] == 'system' %}{% set loop_messages = messages[1:] %}{% set system_message = messages[0]['content'] %}{% else %}{% set loop_messages = messages %}{% set system_message = false %}{% endif %}{% for message in loop_messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if loop.index0 == 0 and system_message != false %}{% set content = '<<SYS>>\\n' + system_message + '\\n<</SYS>>\\n\\n' + message['content'] %}{% else %}{% set content = message['content'] %}{% endif %}{% if message['role'] == 'user' %}{{ bos_token + '[INST] ' + content.strip() + ' [/INST]' }}{% elif message['role'] == 'assistant' %}{{ ' '  + content.strip() + ' ' + eos_token }}{% endif %}{% endfor %}"
+
+
 @dataclass
 class ScriptArguments:
     dataset_path: str = field(
@@ -73,7 +76,6 @@ def training_function(script_args, training_args):
         attn_implementation="sdpa", # use sdpa, alternatively use "flash_attention_2"
         torch_dtype=quant_storage_dtype,
         use_cache=False if training_args.gradient_checkpointing else True,  # this is needed for gradient checkpointing
-
     )
     
     if training_args.gradient_checkpointing:
@@ -82,6 +84,7 @@ def training_function(script_args, training_args):
     
     tokenizer = AutoTokenizer.from_pretrained(script_args.model_id, use_fast=True)
     tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.chat_template = LLAMA_2_CHAT_TEMPLATE
 
     ################
     # PEFT
@@ -114,13 +117,8 @@ def training_function(script_args, training_args):
             "append_concat_token": False,  # No need to add additional separator token
         },
     )
-    #############################################################
-    # Set FSDP for peft
-    # https://huggingface.co/docs/peft/v0.10.0/en/accelerate/fsdp
-    #############################################################
-    trainer.model.print_trainable_parameters()
-    fsdp_plugin = trainer.accelerator.state.fsdp_plugin
-    fsdp_plugin.auto_wrap_policy = fsdp_auto_wrap_policy(trainer.model)
+    if trainer.accelerator.is_main_process:
+        trainer.model.print_trainable_parameters()
 
     ##########################
     # Train model
@@ -133,16 +131,51 @@ def training_function(script_args, training_args):
     ##########################
     # SAVE MODEL FOR SAGEMAKER
     ##########################
-    trainer.accelerator.state.fsdp_plugin.set_state_dict_type("FULL_STATE_DICT")
+    if trainer.is_fsdp_enabled:
+        trainer.accelerator.state.fsdp_plugin.set_state_dict_type("FULL_STATE_DICT")
     trainer.save_model()
     
 if __name__ == "__main__":
-    parser = TrlParser((ScriptArguments, TrainingArguments))
-    script_args, training_args = parser.parse_args_and_config()
-    print(script_args)
-    print(training_args)
+    # parser = TrlParser((ScriptArguments, TrainingArguments))
+    # script_args, training_args = parser.parse_args_and_config()   
+    script_args = ScriptArguments(
+        model_id="meta-llama/llama-2-70b-hf",
+        dataset_path="./",
+        max_seq_length=3072,
+    )
+    training_args = TrainingArguments(
+        output_dir="./llama-7b-hf-no-robot",
+        report_to="tensorboard",
+        learning_rate=2e-4,
+        lr_scheduler_type="constant",
+        num_train_epochs=3,
+        per_device_train_batch_size=1,
+        per_device_eval_batch_size=1,
+        gradient_accumulation_steps=1,
+        optim="adamw_torch_fused",
+        logging_steps=10,
+        save_strategy="epoch",
+        max_grad_norm=0.3,
+        warmup_ratio=0.03,
+        bf16=True,
+        tf32=True,
+        gradient_checkpointing=True,
+        # fsdp_config={
+        #     "fsdp_auto_wrap_policy": "TRANSFORMER_BASED_WRAP",
+        #     "fsdp_backward_prefetch": "BACKWARD_PRE",
+        #     "fsdp_cpu_ram_efficient_loading": True,
+        #     "fsdp_forward_prefetch": False,
+        #     "fsdp_offload_params": True, # set to True for offloading
+        #     "fsdp_sharding_strategy": "FULL_SHARD",
+        #     "fsdp_state_dict_type": "SHARDED_STATE_DICT",
+        #     "fsdp_sync_module_states": True,
+        #     "fsdp_use_orig_params": False,
+        # },
+    )
+    
+    # set use reentrant to False
     if training_args.gradient_checkpointing:
-        training_args.gradient_checkpointing_kwargs = {"use_reentrant": False}
+        training_args.gradient_checkpointing_kwargs = {"use_reentrant": True}
     # set seed
     set_seed(training_args.seed)
   
