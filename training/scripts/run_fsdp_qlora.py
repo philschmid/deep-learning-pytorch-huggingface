@@ -5,7 +5,6 @@ import torch
 from datasets import load_dataset
 from transformers import AutoTokenizer, TrainingArguments
 from trl.commands.cli_utils import  TrlParser
-from peft.utils.other import fsdp_auto_wrap_policy
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -13,7 +12,6 @@ from transformers import (
         set_seed,
 
 )
-from huggingface_hub import login
 
 from peft import LoraConfig
 
@@ -23,6 +21,8 @@ from trl import (
 
 LLAMA_2_CHAT_TEMPLATE="{% if messages[0]['role'] == 'system' %}{% set loop_messages = messages[1:] %}{% set system_message = messages[0]['content'] %}{% else %}{% set loop_messages = messages %}{% set system_message = false %}{% endif %}{% for message in loop_messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if loop.index0 == 0 and system_message != false %}{% set content = '<<SYS>>\\n' + system_message + '\\n<</SYS>>\\n\\n' + message['content'] %}{% else %}{% set content = message['content'] %}{% endif %}{% if message['role'] == 'user' %}{{ bos_token + '[INST] ' + content.strip() + ' [/INST]' }}{% elif message['role'] == 'assistant' %}{{ ' '  + content.strip() + ' ' + eos_token }}{% endif %}{% endfor %}"
 
+
+# ACCELERATE_USE_FSDP=1 FSDP_CPU_RAM_EFFICIENT_LOADING=1 torchrun --nproc_per_node=4 ./scripts/run_fsdp_qlora.py --config llama_70b_fsdp_qlora.yaml
 
 @dataclass
 class ScriptArguments:
@@ -141,7 +141,7 @@ if __name__ == "__main__":
     script_args = ScriptArguments(
         model_id="meta-llama/llama-2-70b-hf",
         dataset_path="./",
-        max_seq_length=3072,
+        max_seq_length=2048,
     )
     training_args = TrainingArguments(
         output_dir="./llama-7b-hf-no-robot",
@@ -152,7 +152,7 @@ if __name__ == "__main__":
         per_device_train_batch_size=1,
         per_device_eval_batch_size=1,
         gradient_accumulation_steps=1,
-        optim="adamw_torch_fused",
+        optim="adamw_torch",
         logging_steps=10,
         save_strategy="epoch",
         max_grad_norm=0.3,
@@ -160,17 +160,12 @@ if __name__ == "__main__":
         bf16=True,
         tf32=True,
         gradient_checkpointing=True,
-        # fsdp_config={
-        #     "fsdp_auto_wrap_policy": "TRANSFORMER_BASED_WRAP",
-        #     "fsdp_backward_prefetch": "BACKWARD_PRE",
-        #     "fsdp_cpu_ram_efficient_loading": True,
-        #     "fsdp_forward_prefetch": False,
-        #     "fsdp_offload_params": True, # set to True for offloading
-        #     "fsdp_sharding_strategy": "FULL_SHARD",
-        #     "fsdp_state_dict_type": "SHARDED_STATE_DICT",
-        #     "fsdp_sync_module_states": True,
-        #     "fsdp_use_orig_params": False,
-        # },
+        fsdp="full_shard auto_wrap offload",
+        fsdp_config={
+            "backward_prefetch": "backward_pre",
+            "forward_prefetch": "false",
+            "use_orig_params": "false",
+        },
     )
     
     # set use reentrant to False
