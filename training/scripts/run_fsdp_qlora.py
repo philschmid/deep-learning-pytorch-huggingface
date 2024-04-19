@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass, field
 import os
+import random
 import torch
 from datasets import load_dataset
 from transformers import AutoTokenizer, TrainingArguments
@@ -12,17 +13,34 @@ from transformers import (
         set_seed,
 
 )
-
+from trl import setup_chat_format
 from peft import LoraConfig
 
 
 from trl import (
    SFTTrainer)
 
-LLAMA_2_CHAT_TEMPLATE="{% if messages[0]['role'] == 'system' %}{% set loop_messages = messages[1:] %}{% set system_message = messages[0]['content'] %}{% else %}{% set loop_messages = messages %}{% set system_message = false %}{% endif %}{% for message in loop_messages %}{% if (message['role'] == 'user') != (loop.index0 % 2 == 0) %}{{ raise_exception('Conversation roles must alternate user/assistant/user/assistant/...') }}{% endif %}{% if loop.index0 == 0 and system_message != false %}{% set content = '<<SYS>>\\n' + system_message + '\\n<</SYS>>\\n\\n' + message['content'] %}{% else %}{% set content = message['content'] %}{% endif %}{% if message['role'] == 'user' %}{{ bos_token + '[INST] ' + content.strip() + ' [/INST]' }}{% elif message['role'] == 'assistant' %}{{ ' '  + content.strip() + ' ' + eos_token }}{% endif %}{% endfor %}"
+# Comment in if you want to use the Llama 3 instruct template but make sure to add modules_to_save
+# LLAMA_3_CHAT_TEMPLATE="{% set loop_messages = messages %}{% for message in loop_messages %}{% set content = '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n'+ message['content'] | trim + '<|eot_id|>' %}{% if loop.index0 == 0 %}{% set content = bos_token + content %}{% endif %}{{ content }}{% endfor %}{% if add_generation_prompt %}{{ '<|start_header_id|>assistant<|end_header_id|>\n\n' }}{% endif %}"
+
+# Anthropic/Vicuna like template without the need for special tokens
+LLAMA_3_CHAT_TEMPLATE = (
+    "{% for message in messages %}"
+        "{% if message['role'] == 'system' %}"
+            "{{ message['content'] }}"
+        "{% elif message['role'] == 'user' %}"
+            "{{ '\n\nHuman: ' + message['content'] +  eos_token }}"
+        "{% elif message['role'] == 'assistant' %}"
+            "{{ '\n\nAssistant: '  + message['content'] +  eos_token  }}"
+        "{% endif %}"
+    "{% endfor %}"
+    "{% if add_generation_prompt %}"
+    "{{ '\n\nAssistant: ' }}"
+    "{% endif %}"
+)
 
 
-# ACCELERATE_USE_FSDP=1 FSDP_CPU_RAM_EFFICIENT_LOADING=1 torchrun --nproc_per_node=4 ./scripts/run_fsdp_qlora.py --config llama_70b_fsdp_qlora.yaml
+# ACCELERATE_USE_FSDP=1 FSDP_CPU_RAM_EFFICIENT_LOADING=1 torchrun --nproc_per_node=4 ./scripts/run_fsdp_qlora.py --config llama_3_70b_fsdp_qlora.yaml
 
 @dataclass
 class ScriptArguments:
@@ -59,6 +77,28 @@ def training_function(script_args, training_args):
     ################
     # Model & Tokenizer
     ################
+
+    # Tokenizer        
+    tokenizer = AutoTokenizer.from_pretrained(script_args.model_id, use_fast=True)
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.chat_template = LLAMA_3_CHAT_TEMPLATE
+    
+    # template dataset
+    def template_dataset(examples):
+        return{"text":  tokenizer.apply_chat_template(examples["messages"], tokenize=False)}
+    
+    train_dataset = train_dataset.map(template_dataset, remove_columns=["messages"])
+    test_dataset = test_dataset.map(template_dataset, remove_columns=["messages"])
+    
+    # print random sample
+    with training_args.main_process_first(
+        desc="Log a few random samples from the processed training set"
+    ):
+        for index in random.sample(range(len(train_dataset)), 2):
+            print(train_dataset[index]["text"])
+            # print(tokenizer.apply_chat_template(train_dataset[index]["messages"],tokenize=False))
+
+    # Model    
     torch_dtype = torch.bfloat16
     quant_storage_dtype = torch.bfloat16
 
@@ -81,11 +121,6 @@ def training_function(script_args, training_args):
     if training_args.gradient_checkpointing:
         model.gradient_checkpointing_enable()
 
-    
-    tokenizer = AutoTokenizer.from_pretrained(script_args.model_id, use_fast=True)
-    tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.chat_template = LLAMA_2_CHAT_TEMPLATE
-
     ################
     # PEFT
     ################
@@ -98,6 +133,7 @@ def training_function(script_args, training_args):
         bias="none",
         target_modules="all-linear",
         task_type="CAUSAL_LM",
+        # modules_to_save = ["lm_head", "embed_tokens"] # add if you want to use the Llama 3 instruct template
     )
 
     ################
@@ -107,6 +143,7 @@ def training_function(script_args, training_args):
         model=model,
         args=training_args,
         train_dataset=train_dataset,
+        dataset_text_field="text",
         eval_dataset=test_dataset,
         peft_config=peft_config,
         max_seq_length=script_args.max_seq_length,
@@ -136,37 +173,40 @@ def training_function(script_args, training_args):
     trainer.save_model()
     
 if __name__ == "__main__":
-    # parser = TrlParser((ScriptArguments, TrainingArguments))
-    # script_args, training_args = parser.parse_args_and_config()   
-    script_args = ScriptArguments(
-        model_id="meta-llama/llama-2-70b-hf",
-        dataset_path="./",
-        max_seq_length=2048,
-    )
-    training_args = TrainingArguments(
-        output_dir="./llama-7b-hf-no-robot",
-        report_to="tensorboard",
-        learning_rate=2e-4,
-        lr_scheduler_type="constant",
-        num_train_epochs=3,
-        per_device_train_batch_size=1,
-        per_device_eval_batch_size=1,
-        gradient_accumulation_steps=1,
-        optim="adamw_torch",
-        logging_steps=10,
-        save_strategy="epoch",
-        max_grad_norm=0.3,
-        warmup_ratio=0.03,
-        bf16=True,
-        tf32=True,
-        gradient_checkpointing=True,
-        fsdp="full_shard auto_wrap offload",
-        fsdp_config={
-            "backward_prefetch": "backward_pre",
-            "forward_prefetch": "false",
-            "use_orig_params": "false",
-        },
-    )
+    parser = TrlParser((ScriptArguments, TrainingArguments))
+    script_args, training_args = parser.parse_args_and_config()   
+
+    # script_args = ScriptArguments(
+    #     model_id="meta-llama/Meta-Llama-3-8b",
+    #     dataset_path="./",
+    #     max_seq_length=2048,
+    # )
+    # training_args = TrainingArguments(
+    #     output_dir="./llama-3-8b-hf-no-robot",
+    #     report_to="tensorboard",
+    #     learning_rate=2e-4,
+    #     lr_scheduler_type="constant",
+    #     num_train_epochs=4,
+    #     per_device_train_batch_size=8,
+    #     per_device_eval_batch_size=8,
+    #     gradient_accumulation_steps=1,
+    #     optim="adamw_torch",
+    #     logging_steps=10,
+    #     save_strategy="epoch",
+    #     evaluation_strategy="epoch",
+    #     max_grad_norm=0.3,
+    #     warmup_ratio=0.03,
+    #     bf16=True,
+    #     tf32=True,
+    #     gradient_checkpointing=True,
+    #     fsdp="full_shard auto_wrap offload",
+    #     fsdp_config={
+    #         "backward_prefetch": "backward_pre",
+    #         "forward_prefetch": "false",
+    #         "use_orig_params": "false",
+    #     },
+    # )
+    
     
     # set use reentrant to False
     if training_args.gradient_checkpointing:
