@@ -47,7 +47,7 @@ class ScriptArguments:
     dataset_path: str = field(
         default=None,
         metadata={
-            "help": "Path to the dataset, should be /opt/ml/input/data/train_dataset.json"
+            "help": "Path to the dataset"
         },
     )
     model_id: str = field(
@@ -96,7 +96,6 @@ def training_function(script_args, training_args):
     ):
         for index in random.sample(range(len(train_dataset)), 2):
             print(train_dataset[index]["text"])
-            # print(tokenizer.apply_chat_template(train_dataset[index]["messages"],tokenize=False))
 
     # Model    
     torch_dtype = torch.bfloat16
@@ -174,39 +173,7 @@ def training_function(script_args, training_args):
     
 if __name__ == "__main__":
     parser = TrlParser((ScriptArguments, TrainingArguments))
-    script_args, training_args = parser.parse_args_and_config()   
-
-    # script_args = ScriptArguments(
-    #     model_id="meta-llama/Meta-Llama-3-8b",
-    #     dataset_path="./",
-    #     max_seq_length=2048,
-    # )
-    # training_args = TrainingArguments(
-    #     output_dir="./llama-3-8b-hf-no-robot",
-    #     report_to="tensorboard",
-    #     learning_rate=2e-4,
-    #     lr_scheduler_type="constant",
-    #     num_train_epochs=4,
-    #     per_device_train_batch_size=8,
-    #     per_device_eval_batch_size=8,
-    #     gradient_accumulation_steps=1,
-    #     optim="adamw_torch",
-    #     logging_steps=10,
-    #     save_strategy="epoch",
-    #     evaluation_strategy="epoch",
-    #     max_grad_norm=0.3,
-    #     warmup_ratio=0.03,
-    #     bf16=True,
-    #     tf32=True,
-    #     gradient_checkpointing=True,
-    #     fsdp="full_shard auto_wrap offload",
-    #     fsdp_config={
-    #         "backward_prefetch": "backward_pre",
-    #         "forward_prefetch": "false",
-    #         "use_orig_params": "false",
-    #     },
-    # )
-    
+    script_args, training_args = parser.parse_args_and_config()    
     
     # set use reentrant to False
     if training_args.gradient_checkpointing:
