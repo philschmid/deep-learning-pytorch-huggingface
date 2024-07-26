@@ -5,20 +5,18 @@ import random
 import torch
 from datasets import load_dataset
 from transformers import AutoTokenizer, TrainingArguments
-from trl.commands.cli_utils import  TrlParser
+from trl.commands.cli_utils import TrlParser
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
-        set_seed,
-
+    set_seed,
 )
 from trl import setup_chat_format
 from peft import LoraConfig
 
 
-from trl import (
-   SFTTrainer)
+from trl import SFTTrainer
 
 # Comment in if you want to use the Llama 3 instruct template but make sure to add modules_to_save
 # LLAMA_3_CHAT_TEMPLATE="{% set loop_messages = messages %}{% for message in loop_messages %}{% set content = '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n'+ message['content'] | trim + '<|eot_id|>' %}{% if loop.index0 == 0 %}{% set content = bos_token + content %}{% endif %}{{ content }}{% endfor %}{% if add_generation_prompt %}{{ '<|start_header_id|>assistant<|end_header_id|>\n\n' }}{% endif %}"
@@ -26,13 +24,13 @@ from trl import (
 # Anthropic/Vicuna like template without the need for special tokens
 LLAMA_3_CHAT_TEMPLATE = (
     "{% for message in messages %}"
-        "{% if message['role'] == 'system' %}"
-            "{{ message['content'] }}"
-        "{% elif message['role'] == 'user' %}"
-            "{{ '\n\nHuman: ' + message['content'] +  eos_token }}"
-        "{% elif message['role'] == 'assistant' %}"
-            "{{ '\n\nAssistant: '  + message['content'] +  eos_token  }}"
-        "{% endif %}"
+    "{% if message['role'] == 'system' %}"
+    "{{ message['content'] }}"
+    "{% elif message['role'] == 'user' %}"
+    "{{ '\n\nHuman: ' + message['content'] +  eos_token }}"
+    "{% elif message['role'] == 'assistant' %}"
+    "{{ '\n\nAssistant: '  + message['content'] +  eos_token  }}"
+    "{% endif %}"
     "{% endfor %}"
     "{% if add_generation_prompt %}"
     "{{ '\n\nAssistant: ' }}"
@@ -42,18 +40,17 @@ LLAMA_3_CHAT_TEMPLATE = (
 
 # ACCELERATE_USE_FSDP=1 FSDP_CPU_RAM_EFFICIENT_LOADING=1 torchrun --nproc_per_node=4 ./scripts/run_fsdp_qlora.py --config llama_3_70b_fsdp_qlora.yaml
 
+
 @dataclass
 class ScriptArguments:
     dataset_path: str = field(
         default=None,
-        metadata={
-            "help": "Path to the dataset"
-        },
+        metadata={"help": "Path to the dataset"},
     )
     model_id: str = field(
         default=None, metadata={"help": "Model ID to use for SFT training"}
     )
-    max_seq_length: int = field(
+    max_seq_len: int = field(
         default=512, metadata={"help": "The maximum sequence length for SFT Trainer"}
     )
 
@@ -62,7 +59,7 @@ def training_function(script_args, training_args):
     ################
     # Dataset
     ################
-    
+
     train_dataset = load_dataset(
         "json",
         data_files=os.path.join(script_args.dataset_path, "train_dataset.json"),
@@ -78,18 +75,20 @@ def training_function(script_args, training_args):
     # Model & Tokenizer
     ################
 
-    # Tokenizer        
+    # Tokenizer
     tokenizer = AutoTokenizer.from_pretrained(script_args.model_id, use_fast=True)
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.chat_template = LLAMA_3_CHAT_TEMPLATE
-    
+
     # template dataset
     def template_dataset(examples):
-        return{"text":  tokenizer.apply_chat_template(examples["messages"], tokenize=False)}
-    
+        return {
+            "text": tokenizer.apply_chat_template(examples["messages"], tokenize=False)
+        }
+
     train_dataset = train_dataset.map(template_dataset, remove_columns=["messages"])
     test_dataset = test_dataset.map(template_dataset, remove_columns=["messages"])
-    
+
     # print random sample
     with training_args.main_process_first(
         desc="Log a few random samples from the processed training set"
@@ -97,26 +96,29 @@ def training_function(script_args, training_args):
         for index in random.sample(range(len(train_dataset)), 2):
             print(train_dataset[index]["text"])
 
-    # Model    
+    # Model
     torch_dtype = torch.bfloat16
     quant_storage_dtype = torch.bfloat16
 
     quantization_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch_dtype,
-            bnb_4bit_quant_storage=quant_storage_dtype,
-        )
+        load_in_4bit=True,
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch_dtype,
+        bnb_4bit_quant_storage=quant_storage_dtype,
+    )
 
     model = AutoModelForCausalLM.from_pretrained(
         script_args.model_id,
         quantization_config=quantization_config,
-        attn_implementation="sdpa", # use sdpa, alternatively use "flash_attention_2"
+        attn_implementation="sdpa",  # use sdpa, alternatively use "flash_attention_2"
         torch_dtype=quant_storage_dtype,
-        use_cache=False if training_args.gradient_checkpointing else True,  # this is needed for gradient checkpointing
+        low_cpu_mem_usage=True,
+        use_cache=(
+            False if training_args.gradient_checkpointing else True
+        ),  # this is needed for gradient checkpointing
     )
-    
+
     if training_args.gradient_checkpointing:
         model.gradient_checkpointing_enable()
 
@@ -170,16 +172,17 @@ def training_function(script_args, training_args):
     if trainer.is_fsdp_enabled:
         trainer.accelerator.state.fsdp_plugin.set_state_dict_type("FULL_STATE_DICT")
     trainer.save_model()
-    
+
+
 if __name__ == "__main__":
     parser = TrlParser((ScriptArguments, TrainingArguments))
-    script_args, training_args = parser.parse_args_and_config()    
-    
+    script_args, training_args = parser.parse_args_and_config()
+
     # set use reentrant to False
     if training_args.gradient_checkpointing:
         training_args.gradient_checkpointing_kwargs = {"use_reentrant": True}
     # set seed
     set_seed(training_args.seed)
-  
+
     # launch training
     training_function(script_args, training_args)
