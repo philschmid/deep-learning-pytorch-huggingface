@@ -10,6 +10,7 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
+    AutoConfig,
     set_seed,
 )
 from trl import setup_chat_format
@@ -89,34 +90,52 @@ def training_function(script_args, training_args):
     train_dataset = train_dataset.map(template_dataset, remove_columns=["messages"])
     test_dataset = test_dataset.map(template_dataset, remove_columns=["messages"])
 
-    # print random sample
-    with training_args.main_process_first(
-        desc="Log a few random samples from the processed training set"
-    ):
-        for index in random.sample(range(len(train_dataset)), 2):
-            print(train_dataset[index]["text"])
-
-    # Model
     torch_dtype = torch.bfloat16
-    quant_storage_dtype = torch.bfloat16
-
-    quantization_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch_dtype,
-        bnb_4bit_quant_storage=quant_storage_dtype,
-    )
+    # Model
+    # FIXME: to work with both quantized and non quantized models, current issue is that
+    # if quantization_config=None it fails to load the model
+    # Solution: Create a dict of kwargs and then remove the key if not needed, see alignmment handbook as prep
+    # config = AutoConfig.from_pretrained(script_args.model_id)
+    # if getattr(config, "quantization_config", None) is None:
+    #     torch_dtype = torch.bfloat16
+    #     quantization_config = BitsAndBytesConfig(
+    #         load_in_4bit=True,
+    #         bnb_4bit_use_double_quant=True,
+    #         bnb_4bit_quant_type="nf4",
+    #         bnb_4bit_compute_dtype=torch_dtype,
+    #         bnb_4bit_quant_storage=torch_dtype,
+    #     )
+    # else:
+    #     quantization_config = None
+    #     torch_dtype = (
+    #         torch.bfloat16
+    #         if config.quantization_config["bnb_4bit_compute_dtype"] == "bfloat16"
+    #         else (
+    #             torch.float16
+    #             if config.quantization_config["bnb_4bit_compute_dtype"] == "float16"
+    #             else torch.float32
+    #         )
+    #     )
+    #     quant_storage_dtype = (
+    #         torch.bfloat16
+    #         if config.quantization_config["bnb_4bit_compute_dtype"] == "bfloat16"
+    #         else (
+    #             torch.float16
+    #             if config.quantization_config["bnb_4bit_compute_dtype"] == "float16"
+    #             else torch.float32
+    #         )
+    #     )
+    # print(f"torch_dtype: {torch_dtype}")
+    # print(f"quant_storage_dtype: {quant_storage_dtype}")
+    # print(f"quantization_config: {quantization_config}")
 
     model = AutoModelForCausalLM.from_pretrained(
         script_args.model_id,
-        quantization_config=quantization_config,
+        # quantization_config=quantization_config,
         attn_implementation="sdpa",  # use sdpa, alternatively use "flash_attention_2"
-        torch_dtype=quant_storage_dtype,
-        low_cpu_mem_usage=True,
-        use_cache=(
-            False if training_args.gradient_checkpointing else True
-        ),  # this is needed for gradient checkpointing
+        torch_dtype=torch_dtype,
+        use_cache=False,  # this is needed for gradient checkpointing
+        low_cpu_mem_usage=True,  # Reduces memory usage on CPU
     )
 
     if training_args.gradient_checkpointing:
@@ -147,7 +166,7 @@ def training_function(script_args, training_args):
         dataset_text_field="text",
         eval_dataset=test_dataset,
         peft_config=peft_config,
-        max_seq_length=script_args.max_seq_length,
+        max_seq_length=script_args.max_seq_len,
         tokenizer=tokenizer,
         packing=True,
         dataset_kwargs={
