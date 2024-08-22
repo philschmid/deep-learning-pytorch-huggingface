@@ -9,14 +9,15 @@ fsdp_config:
   fsdp_forward_prefetch: false
   fsdp_offload_params: true
   fsdp_sharding_strategy: FULL_SHARD
-  fsdp_state_dict_type: SHARDED_STATE_DICT
+  fsdp_state_dict_type: FULL_STATE_DICT
   fsdp_sync_module_states: true
   fsdp_use_orig_params: false
+  fsdp_limit_all_gathers: true
 machine_rank: 0
 main_training_function: main
 mixed_precision: 'no'
 num_machines: 1
-num_processes: 8
+num_processes: 4
 rdzv_backend: static
 same_network: true
 tpu_env: []
