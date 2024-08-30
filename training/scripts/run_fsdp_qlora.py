@@ -1,7 +1,5 @@
-import logging
 from dataclasses import dataclass, field
 import os
-import random
 import torch
 from datasets import load_dataset
 from transformers import AutoTokenizer, TrainingArguments
@@ -90,24 +88,27 @@ def training_function(script_args, training_args):
     train_dataset = train_dataset.map(template_dataset, remove_columns=["messages"])
     test_dataset = test_dataset.map(template_dataset, remove_columns=["messages"])
 
-    torch_dtype = torch.bfloat16
     # Model
-    # FIXME: to work with both quantized and non quantized models, current issue is that
-    # if quantization_config=None it fails to load the model
-    # Solution: Create a dict of kwargs and then remove the key if not needed, see alignmment handbook as prep
     config = AutoConfig.from_pretrained(script_args.model_id)
+    model_kwargs = dict(
+        attn_implementation="flash_attention_2",  # use flash_attention_2, alternatively use "sdpa"
+        torch_dtype=torch.bfloat16,
+        use_cache=False,  # this is needed for gradient checkpointing
+        low_cpu_mem_usage=True,  # Reduces memory usage on CPU
+    )
+
+    # detect if pre-quanitizated model is used or not
     if getattr(config, "quantization_config", None) is None:
-        torch_dtype = torch.bfloat16
         quantization_config = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_use_double_quant=True,
             bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch_dtype,
-            bnb_4bit_quant_storage=torch_dtype,
+            bnb_4bit_compute_dtype=model_kwargs["torch_dtype"],
+            bnb_4bit_quant_storage=model_kwargs["torch_dtype"],
         )
+        model_kwargs["quantization_config"] = quantization_config
     else:
-        quantization_config = None
-        torch_dtype = (
+        model_kwargs["torch_dtype"] = (
             torch.bfloat16
             if config.quantization_config["bnb_4bit_compute_dtype"] == "bfloat16"
             else (
@@ -116,16 +117,10 @@ def training_function(script_args, training_args):
                 else torch.float32
             )
         )
-    print(f"torch_dtype: {torch_dtype}")
-    print(f"quantization_config: {quantization_config}")
 
     model = AutoModelForCausalLM.from_pretrained(
         script_args.model_id,
-        quantization_config=quantization_config,
-        attn_implementation="flash_attention_2",  # use flash_attention_2, alternatively use "sdpa"
-        torch_dtype=torch_dtype,
-        use_cache=False,  # this is needed for gradient checkpointing
-        low_cpu_mem_usage=True,  # Reduces memory usage on CPU
+        **model_kwargs,
     )
     training_args.distributed_state.wait_for_everyone()  # wait for all processes to load
 
@@ -179,7 +174,7 @@ def training_function(script_args, training_args):
     ##########################
     # SAVE MODEL FOR SAGEMAKER
     ##########################
-    # TODO: Check if i should use `SHARDED_STATE_DICT` or `FULL_STATE_DICT` in accelerate config and if to still need this. 
+    # TODO: Check if i should use `SHARDED_STATE_DICT` or `FULL_STATE_DICT` in accelerate config and if to still need this.
     if trainer.is_fsdp_enabled:
         trainer.accelerator.state.fsdp_plugin.set_state_dict_type("FULL_STATE_DICT")
     trainer.save_model()
