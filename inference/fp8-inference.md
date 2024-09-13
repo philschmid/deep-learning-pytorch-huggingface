@@ -4,7 +4,7 @@
 
 ## Summary
 
-** Model Memory Usage**
+**Model Memory Usage**
 - FP8: 8.49 GB
 - FP16: 14.99 GB
 - Memory Savings: ~43%
