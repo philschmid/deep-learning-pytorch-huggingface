@@ -3,15 +3,15 @@
 #SBATCH --exclusive
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:8
-#SBATCH --requeue
 #SBATCH --partition=hopper-prod  # Adjust this for your cluster
 #SBATCH --output=/fsx/philipp/logs/%x-%j.out # Adjust this for your cluster
 #SBATCH --err=/fsx/philipp/logs/%x-%j.err    # Adjust this for your cluster
 
+#/// SBATCH --requeue
 set -x -e
 
 source ~/.bashrc
-conda activate dev
+micromamba activate dev # might need to be replaced with conda
 echo "START TIME: $(date)"
 
 
@@ -31,7 +31,7 @@ MASTER_PORT=6000
 export CMD=" \
     $SCRIPT_PATH --config $TRAINING_CONFIG
     "
-export LAUNCHER="HF_HUB_CACHE=/scratch/.cache/ HF_HUB_ENABLE_HF_TRANSFER=1 ACCELERATE_LOG_LEVEL=info TRANSFORMERS_VERBOSITY=info accelerate launch \
+export LAUNCHER="HF_HUB_ENABLE_HF_TRANSFER=1 ACCELERATE_LOG_LEVEL=info TRANSFORMERS_VERBOSITY=info accelerate launch \
    --config_file $ACCELERATE_CONFIG  \
    --num_machines $NUM_NODES \
    --num_processes $WORLD_SIZE \
