@@ -6,9 +6,15 @@ os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed, BitsAndBytesConfig
 from transformers.trainer_utils import get_last_checkpoint
+from transformers.utils import is_liger_kernel_available
 from trl import SFTTrainer, TrlParser, ModelConfig, SFTConfig, get_peft_config
 from datasets import load_dataset
 from peft import AutoPeftModelForCausalLM
+
+if is_liger_kernel_available():
+    from liger_kernel.transformers import AutoLigerKernelForCausalLM
+
+
 
 ########################
 # Custom dataclasses
@@ -20,7 +26,6 @@ class ScriptArguments:
     tokenizer_name_or_path: str = None
     merge_adapter: bool = False
     use_spectrum: bool = False
-    use_liger_kernels: bool = False
 
 
 ########################
@@ -118,7 +123,10 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
         peft_config = None
     
     # load the model with our kwargs
-    model = AutoModelForCausalLM.from_pretrained(model_args.model_name_or_path, **model_kwargs)
+    if training_args.use_liger:
+        model = AutoLigerKernelForCausalLM.from_pretrained(model_args.model_name_or_path, **model_kwargs)
+    else:
+        model = AutoModelForCausalLM.from_pretrained(model_args.model_name_or_path, **model_kwargs)
     training_args.distributed_state.wait_for_everyone()  # wait for all processes to load
 
 
