@@ -25,7 +25,6 @@ class ScriptArguments:
     dataset_id_or_path: str
     dataset_splits: str = "train"
     tokenizer_name_or_path: str = None
-    merge_adapter: bool = False
     use_spectrum: bool = False
 
 
@@ -48,16 +47,6 @@ def get_checkpoint(training_args: SFTConfig):
     if os.path.isdir(training_args.output_dir):
         last_checkpoint = get_last_checkpoint(training_args.output_dir)
     return last_checkpoint
-
-def merge_peft_model(adapter_dir, save_dir):
-    """Merge the adapter and base model at end of training. This is helpful for single model inference."""
-    model = AutoPeftModelForCausalLM.from_pretrained(
-        adapter_dir,
-        low_cpu_mem_usage=True,
-    )
-    logger.info('Merging adapter and base model...')
-    merged_model = model.merge_and_unload()  # merge adapter and base model
-    merged_model.save_pretrained(save_dir, max_shard_size='3GB')
 
 ###########################################################################################################
 
@@ -170,17 +159,9 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
         trainer.accelerator.state.fsdp_plugin.set_state_dict_type('FULL_STATE_DICT')
     # Restore k,v cache for fast inference
     trainer.model.config.use_cache = True
-    if script_args.merge_adapter and peft_config:
-        adapter_dir = os.path.join(training_args.output_dir, 'adapter')
-        trainer.model.save_pretrained(adapter_dir)
-        logger.info(f'Adapters saved to {adapter_dir}')
-        logger.info('Merging adapter and base model...')
-        if trainer.accelerator.is_main_process:
-            # merge adapter and base model on main process
-            merge_peft_model(adapter_dir, training_args.output_dir)
-    else:
-        trainer.save_model(training_args.output_dir)
-        logger.info(f'Model saved to {training_args.output_dir}')
+    trainer.save_model(training_args.output_dir)
+    logger.info(f'Model saved to {training_args.output_dir}')
+    training_args.distributed_state.wait_for_everyone()  # wait for all processes to load
 
     tokenizer.save_pretrained(training_args.output_dir)
     logger.info(f'Tokenizer saved to {training_args.output_dir}')
