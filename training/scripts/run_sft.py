@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+from distutils.util import strtobool
 import logging
 import os
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
@@ -97,7 +98,7 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
     #######################
     # Load pretrained model
     #######################
-
+    
     # define model kwargs
     model_kwargs = dict(
         revision=model_args.model_revision, # What revision from Huggingface to use, defaults to main
@@ -105,7 +106,7 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
         attn_implementation=model_args.attn_implementation, # What attention implementation to use, defaults to flash_attention_2
         torch_dtype=model_args.torch_dtype if model_args.torch_dtype in ['auto', None] else getattr(torch, model_args.torch_dtype), # What torch dtype to use, defaults to auto
         use_cache=False if training_args.gradient_checkpointing else True, # Whether
-        low_cpu_mem_usage=True,  # Reduces memory usage on CPU for loading the model
+        low_cpu_mem_usage=True if not strtobool(os.environ.get("ACCELERATE_USE_DEEPSPEED", "false")) else None,  # Reduces memory usage on CPU for loading the model
     )
     
     # Check which training method to use and if 4-bit quantization is needed
@@ -185,16 +186,12 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
     logger.info(f'Tokenizer saved to {training_args.output_dir}')
 
     # Save everything else on main process
-    kwargs = {
-        'finetuned_from': model_args.model_name_or_path,
-        'tags': ['sft', 'tutorial', 'philschmid'],
-    }
     if trainer.accelerator.is_main_process:
-        trainer.create_model_card(**kwargs)
-
+        trainer.create_model_card({'tags': ['sft', 'tutorial', 'philschmid']})
+    # push to hub if needed
     if training_args.push_to_hub is True:
         logger.info('Pushing to hub...')
-        trainer.push_to_hub(**kwargs)
+        trainer.push_to_hub()
 
     logger.info('*** Training complete! ***')
 
