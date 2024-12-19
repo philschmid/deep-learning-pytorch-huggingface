@@ -7,7 +7,7 @@ attn_implementation: flash_attention_2
 use_liger: true
 bf16: true
 tf32: true
-output_dir: data/llama-3-1-8b-math-orca-qlora-10k-ep1
+output_dir: runs/llama-3-1-8b-math-orca-qlora-10k-ep1
 
 # Dataset arguments
 dataset_id_or_path: train_dataset.json
