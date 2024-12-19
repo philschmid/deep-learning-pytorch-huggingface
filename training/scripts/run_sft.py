@@ -3,6 +3,8 @@ from datetime import datetime
 from distutils.util import strtobool
 import logging
 import os
+import re
+from typing import Optional
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, set_seed, BitsAndBytesConfig
@@ -25,7 +27,7 @@ class ScriptArguments:
     dataset_id_or_path: str
     dataset_splits: str = "train"
     tokenizer_name_or_path: str = None
-    use_spectrum: bool = False
+    spectrum_config_path: Optional[str] = None
 
 
 ########################
@@ -47,6 +49,32 @@ def get_checkpoint(training_args: SFTConfig):
     if os.path.isdir(training_args.output_dir):
         last_checkpoint = get_last_checkpoint(training_args.output_dir)
     return last_checkpoint
+
+
+def setup_model_for_spectrum(model, spectrum_config_path):
+    unfrozen_parameters = []
+    with open(spectrum_config_path, "r") as fin:
+        yaml_parameters = fin.read()
+
+    # get the unfrozen parameters from the yaml file
+    for line in yaml_parameters.splitlines():
+        if line.startswith("- "):
+            unfrozen_parameters.append(line.split("- ")[1])
+
+    # freeze all parameters
+    for param in model.parameters():
+        param.requires_grad = False
+    # unfreeze Spectrum parameters
+    for name, param in model.named_parameters():
+        if any(re.match(unfrozen_param, name) for unfrozen_param in unfrozen_parameters):
+            param.requires_grad = True
+    
+    # COMMENT IN: for sanity check print the trainable parameters
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            print(f"Trainable parameter: {name}")      
+            
+    return model
 
 ###########################################################################################################
 
@@ -119,6 +147,9 @@ def train_function(model_args: ModelConfig, script_args: ScriptArguments, traini
         model = AutoModelForCausalLM.from_pretrained(model_args.model_name_or_path, **model_kwargs)
     training_args.distributed_state.wait_for_everyone()  # wait for all processes to load
 
+
+    if script_args.spectrum_config_path:
+        model = setup_model_for_spectrum(model, script_args.spectrum_config_path)
 
     ########################
     # Initialize the Trainer
