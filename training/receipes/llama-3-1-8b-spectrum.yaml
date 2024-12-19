@@ -7,7 +7,7 @@ attn_implementation: flash_attention_2
 use_liger: true
 bf16: true
 tf32: true
-output_dir: runs/llama-3-1-8b-math-orca-qlora-10k-ep1
+output_dir: runs/llama-3-1-8b-math-orca-spectrum-10k-ep1
 
 # Dataset arguments
 dataset_id_or_path: train_dataset.json
@@ -24,8 +24,8 @@ gradient_accumulation_steps: 2
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:
   use_reentrant: false
-learning_rate: 2.0e-4 
-lr_scheduler_type: constant
+learning_rate: 5.0e-5
+lr_scheduler_type: cosine
 warmup_ratio: 0.1
 
 # Logging arguments
