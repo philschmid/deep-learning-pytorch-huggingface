@@ -1,32 +1,29 @@
 # Getting Started with Deep Learning with PyTorch and Hugging Face
 
-This repository contains instructions/examples/tutorials for getting started with Deep Learning Pytorch and Hugging Face libraries like [transformers](https://huggingface.co/docs/transformers/index), [datasets](https://huggingface.co/docs/datasets/index).
+This repository contains instructions/examples/tutorials for getting started with Deep Learning using PyTorch and Hugging Face libraries like [transformers](https://huggingface.co/docs/transformers/index), [datasets](https://huggingface.co/docs/datasets/index).
 
-### Training
+### Training Examples
 
-* [Getting started with Pytorch 2.0 and Hugging Face Transformers](./training/pytorch-2-0-bert-text-classification.ipynb) 
-* [Fine-tune FLAN-T5 XL/XXL using DeepSpeed & Hugging Face Transformers](./training/deepseed-flan-t5-summarization.ipynb) 
-* [Fine-tune FLAN-T5 for chat & dialogue summarization](./training/flan-t5-samsum-summarization.ipynb) 
-* [Getting started with Transformers and TPU using PyTorch](./training/accelerate-tpu-bert-text-classification.ipynb)
+* [Fine-tune FLAN-T5 XL/XXL using DeepSpeed & Hugging Face Transformers](./training/deepseed-flan-t5-summarization.ipynb)
+* [Fine-tune FLAN-T5 for chat & dialogue summarization](./training/flan-t5-samsum-summarization.ipynb)
 * [Fine-tune Falcon 180B with DeepSpeed ZeRO, LoRA & Flash Attention](./training/deepseed-falcon-180b-lora-fa.ipynb)
+* [Getting started with Transformers and TPU using PyTorch](./training/accelerate-tpu-bert-text-classification.ipynb)
 * [Extended Guide: Instruction-tune Llama 2](./training/instruction-tune-llama-2-int4.ipynb)
 * [Quantize open LLMs using optimum and GPTQ](./training/optimize-llama-2-gptq.ipynb)
+* [Fine-tune Embedding models for RAG](./training/fine-tune-embedding-model-for-rag.ipynb)
+* [Fine-tune LLMs in 2024 with TRL](./training/fine-tune-llms-in-2024-with-trl.ipynb)
+* [Fine-tune LLMs in 2025](./training/fine-tune-llms-in-2025.ipynb)
+* [Fine-tune Multimodal LLMs with TRL](./training/fine-tune-multimodal-llms-with-trl.ipynb)
+* [RLHF in 2024 with DPO & Hugging Face](./training/dpo-align-llms-in-2024-with-trl.ipynb)
+* [Fine-tune Gemma with ChatML](./training/gemma-lora-example.ipynb)
+* [Efficiently scale distributed training with FSDP & Q-LoRA](./training/fsdp-qlora-distributed-llama3.ipynb)
 
-## Requirements
+### Inference Examples
 
-Before we can start make sure you have met the following requirements
+* [Text Generation Inference Examples](./inference/README.md)
+* [FP8 Inference Benchmarks](./inference/fp8-inference.md)
+* [Idefics Inference](./inference/idefics.md)
+* [Llama 2 Inference](./inference/llama-7b.md)
+* [Speculative Decoding](./inference/speculative.md)
+* [StarCoder GPTQ Inference](./inference/starcoder_gptq.md)
 
-* AWS Account with quota
-* [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) installed
-* AWS IAM user [configured in CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-configure.html) with permission to create and manage ec2 instances
-
-
-### Commands 
-
-```bash
-echo 'export PATH="${HOME}/.local/bin:$PATH"' >> ${HOME}/.bashrc 
-````
-
-```bash
-watch -n0.1 nvidia-smi
-```

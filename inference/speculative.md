@@ -66,3 +66,35 @@ curl localhost:8080/v1/chat/completions \
 
 
 chat_completions{total_time="2.360607542s" validation_time="256.541µs" queue_time="37.931µs" inference_time="2.36031324s" time_per_token="12.166563ms" seed="Some(5272915472497899851)"}
+
+
+## EAGLE Speculator
+
+```bash
+huggingface-cli download Meta-Llama-3-8B-Instruct --local-dir Meta-Llama-3-8B-Instruct
+huggingface-cli download Meta-Llama-3-8B-Instruct --local-dir EAGLE-LLaMA3-Instruct-8B
+
+
+```python
+import json
+
+import torch
+from safetensors.torch import load_file, save_file
+
+ckpt = torch.load("EAGLE-LLaMA3-Instruct-8B/pytorch_model.bin")
+ref_ckpt = load_file("Meta-Llama-3-8B-Instruct/model-00004-of-00004.safetensors")
+
+ckpt['lm_head.weight'] = ref_ckpt['lm_head.weight']
+
+save_file(ckpt, "EAGLE-LLaMA3-Instruct-8B/model.safetensors")
+
+with open("EAGLE-LLaMA3-Instruct-8B/config.json") as rf:
+    cfg = json.load(rf)
+
+cfg = {"model_type": "eagle", "model": cfg}
+
+with open("EAGLE-LLaMA3-Instruct-8B/config.json", "w") as wf:
+    json.dump(cfg, wf)
+
+# delete EAGLE-LLaMA3-Instruct-8B/pytorch_model.bin
+```
