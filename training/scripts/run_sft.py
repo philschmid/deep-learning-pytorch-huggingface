@@ -70,9 +70,9 @@ def setup_model_for_spectrum(model, spectrum_config_path):
             param.requires_grad = True
     
     # COMMENT IN: for sanity check print the trainable parameters
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            print(f"Trainable parameter: {name}")      
+    # for name, param in model.named_parameters():
+    #     if param.requires_grad:
+    #         print(f"Trainable parameter: {name}")      
             
     return model
 
