@@ -26,4 +26,3 @@ This repository contains instructions/examples/tutorials for getting started wit
 * [Llama 2 Inference](./inference/llama-7b.md)
 * [Speculative Decoding](./inference/speculative.md)
 * [StarCoder GPTQ Inference](./inference/starcoder_gptq.md)
-
