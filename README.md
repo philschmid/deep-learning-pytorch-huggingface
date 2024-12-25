@@ -17,6 +17,7 @@ This repository contains instructions/examples/tutorials for getting started wit
 * [RLHF in 2024 with DPO & Hugging Face](./training/dpo-align-llms-in-2024-with-trl.ipynb)
 * [Fine-tune Gemma with ChatML](./training/gemma-lora-example.ipynb)
 * [Efficiently scale distributed training with FSDP & Q-LoRA](./training/fsdp-qlora-distributed-llama3.ipynb)
+* [Fine-tune classifier with ModernBERT in 2025](./training/fine-tune-modern-bert-in-2025.ipynb)
 
 ### Inference Examples
 
