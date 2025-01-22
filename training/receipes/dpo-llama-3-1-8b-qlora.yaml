@@ -7,7 +7,7 @@ attn_implementation: flash_attention_2
 use_liger: false
 bf16: true
 tf32: true
-output_dir: runs/dpo-llama-3-1-8b-math
+output_dir: runs/dpo-llama-3-1-8b-math-ep3
 
 # Dataset arguments
 dataset_id_or_path: philschmid/philschmid-llama-3-1-8b-math-orca-spectr-philschmid-DMath-candidates
@@ -17,18 +17,18 @@ use_peft: true
 load_in_4bit: true
 lora_target_modules: "all-linear"
 # important as we need to train the special tokens for the chat template of llama 
-# lora_modules_to_save: ["lm_head", "embed_tokens"] # you might need to change this for qwen or other models
+lora_modules_to_save: ["lm_head", "embed_tokens"] # you might need to change this for qwen or other models
 lora_r: 16
 lora_alpha: 16
 
 # Training arguments
-beta: 0.1
-max_length: 1024
-max_prompt_length: 512
+beta: 0.01
+max_length: 1536
+max_prompt_length: 768
 loss_type: sigmoid # default loss, alternatives: https://huggingface.co/docs/trl/dpo_trainer#loss-functions
-num_train_epochs: 1
-per_device_train_batch_size: 2
-gradient_accumulation_steps: 2
+num_train_epochs: 3
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 4
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:
   use_reentrant: false
