@@ -27,8 +27,8 @@ max_length: 1536
 max_prompt_length: 768
 loss_type: sigmoid # default loss, alternatives: https://huggingface.co/docs/trl/dpo_trainer#loss-functions
 num_train_epochs: 3
-per_device_train_batch_size: 1
-gradient_accumulation_steps: 4
+per_device_train_batch_size: 8
+gradient_accumulation_steps: 1
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:
   use_reentrant: false
@@ -48,3 +48,13 @@ seed: 42
 push_to_hub: true
   # hub_model_id: llama-3-1-8b-math-orca-qlora-10k-ep1 # if not defined same as output_dir
 hub_strategy: every_save
+
+
+# lm_eval \
+#   --model vllm \
+#   --model_args pretrained="philschmid/dpo-llama-3-1-8b-math-ep3-merged",dtype=auto,gpu_memory_utilization=0.4,add_bos_token=True,max_model_len=4096 \
+#   --apply_chat_template \
+#   --tasks gsm8k_cot \
+#   --batch_size auto
+# |gsm8k_cot|      3|flexible-extract|     8|exact_match|↑  |0.5671|±  |0.0136|
+# |         |       |strict-match    |     8|exact_match|↑  |0.0159|±  |0.0034|
