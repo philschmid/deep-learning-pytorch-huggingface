@@ -18,6 +18,7 @@ This repository contains instructions/examples/tutorials for getting started wit
 * [Fine-tune Gemma with ChatML](./training/gemma-lora-example.ipynb)
 * [Efficiently scale distributed training with FSDP & Q-LoRA](./training/fsdp-qlora-distributed-llama3.ipynb)
 * [Fine-tune classifier with ModernBERT in 2025](./training/fine-tune-modern-bert-in-2025.ipynb)
+* [How to align open LLMs in 2025 with DPO & Hugging Face](https://github.com/philschmid/deep-learning-pytorch-huggingface/blob/main/training/rl-with-llms-in-2025-dpo.ipynb)
 
 ### Inference Examples
 
