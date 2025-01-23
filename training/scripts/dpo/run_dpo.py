@@ -178,11 +178,8 @@ def dpo_function(
     )
     # Checks wether we use adapters for reference model or not
     if peft_config is None:
-        model_name_or_path = (
-            training_args.ref_model_name_or_path or model_args.model_name_or_path
-        )
         model_ref = AutoModelForCausalLM.from_pretrained(
-            model_name_or_path, **model_kwargs
+              model_args.model_name_or_path, **model_kwargs
         )
     else:
         model_ref = None
