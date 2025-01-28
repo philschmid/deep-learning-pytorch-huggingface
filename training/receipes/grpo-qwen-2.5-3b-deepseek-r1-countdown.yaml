@@ -1,5 +1,5 @@
 # Model arguments
-model_name_or_path: Qwen/Qwen2.5-3B-Instruct
+model_name_or_path: Qwen/Qwen2.5-1.5B-Instruct
 model_revision: main
 torch_dtype: bfloat16
 attn_implementation: flash_attention_2
@@ -14,22 +14,22 @@ dataset_id_or_path: Jiayi-Pan/Countdown-Tasks-3to4
 # No LoRA is used here
 
 # Training arguments
-max_steps: 100
+max_steps: 400
 per_device_train_batch_size: 1
-gradient_accumulation_steps: 4
+gradient_accumulation_steps: 8
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:
   use_reentrant: false
-learning_rate: 1.0e-5  
-lr_scheduler_type: constant
+learning_rate: 1.0e-5
+lr_scheduler_type: cosine
 warmup_ratio: 0.03
 # GRPO specific parameters
 beta: 0.04
-max_prompt_length: 256
-max_completion_length: 512
-num_generations: 4
+max_prompt_length: 128
+max_completion_length: 768
+num_generations: 8
 use_vllm: true
-vllm_device: 4
+vllm_device: 3
 vllm_gpu_memory_utilization: 0.5
 
 # Logging arguments
