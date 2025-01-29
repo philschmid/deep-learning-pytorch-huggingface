@@ -57,7 +57,7 @@ def format_reward_func(completions, target, **kwargs):
       try:
         # add synthetic <think> as its already part of the prompt and prefilled for the assistant to more easily match the regex
         completion = "<think>" + completion
-        if random.random() < 0.03:  # 3% chance 
+        if random.random() < 0.1:  # 1% chance to write samples into a file
           os.makedirs("completion_samples", exist_ok=True)
           log_file = os.path.join("completion_samples", "completion_samples.txt")
           with open(log_file, "a") as f:
@@ -65,7 +65,7 @@ def format_reward_func(completions, target, **kwargs):
             f.write(completion)
         
         # Check if the format is correct
-        regex = r"^<think>([^<]*(?:<(?!/?think>)[^<]*)*)<\/think><answer>([\s\S]*?)<\/answer>$"
+        regex = r"^<think>([^<]*(?:<(?!/?think>)[^<]*)*)<\/think>\n<answer>([\s\S]*?)<\/answer>$"
 
         match = re.search(regex, completion, re.DOTALL) 
         # if the format is not correct, reward is 0
@@ -101,9 +101,7 @@ def equation_reward_func(completions, target, nums, **kwargs):
             rewards.append(0.0)
             continue
         # Extract the "answer" part from the completion
-        answer_equation = match.group(1).strip()
-        # Replace '×' with '*' for Python compatibility
-        equation = answer_equation.replace("×", "*")
+        equation = match.group(1).strip()
         # Extract all numbers from the equation
         used_numbers = [int(n) for n in re.findall(r'\d+', equation)]
         
@@ -111,16 +109,28 @@ def equation_reward_func(completions, target, nums, **kwargs):
         if sorted(used_numbers) != sorted(numbers):
             rewards.append(0.0)
             continue
-        # Evaluate the equation and compare it to the target
-        result = eval(equation)
+        # Define a regex pattern that only allows numbers, operators, parentheses, and whitespace
+        allowed_pattern = r'^[\d+\-*/().\s]+$'
+        if not re.match(allowed_pattern, equation):
+           rewards.append(0.0)
+           continue
+        
+        # Evaluate the equation with restricted globals and locals
+        result = eval(equation, {"__builtins__": None}, {})
         # Check if the equation is correct and matches the ground truth
-        if float(result) == float(gt):
+        if abs(float(result) - float(gt)) < 1e-5:
             rewards.append(1.0)
+            if random.random() < 0.10:  # 10% chance to write fully successful samples into a file
+                os.makedirs("completion_samples", exist_ok=True)
+                log_file = os.path.join("completion_samples", "success_completion_samples.txt")
+                with open(log_file, "a") as f:
+                    f.write(f"\n\n==============\n")
+                    f.write(completion)
         else:
             rewards.append(0.0)
       except Exception:
-          # If evaluation fails, reward is 0
-          rewards.append(0.0)
+            # If evaluation fails, reward is 0
+            rewards.append(0.0) 
     return rewards
 
 def get_checkpoint(training_args: GRPOConfig):
@@ -174,11 +184,11 @@ def grpo_function(
           },
           { 
             "role": "user",
-            "content": f"Using the numbers {numbers}, create an equation that equals {target}. You can use basic arithmetic operations (+, -, *, /) and each number can only be used once. Show your work in <think> </think> tags. And return the final equation in <answer> </answer> tags, for example <answer> (1 + 2) / 3 </answer>. Think step by step inside <think> tags."
+            "content": f"Using the numbers {numbers}, create an equation that equals {target}. You can use basic arithmetic operations (+, -, *, /) one or multiple times but each number can only be used once. Show your work in <think> </think> tags. And return the final equation in <answer> </answer> tags, for example <answer> (1 + 2) / 3 </answer>. Think step by step inside <think> tags."
           },
           {
             "role": "assistant",
-            "content": "<think>"
+            "content": "Let me solve this step by step.\n<think>"
           }]
         return {"prompt": tokenizer.apply_chat_template(r1_prefix, tokenize=False, continue_final_message=True), "target": target, "nums": numbers}
 

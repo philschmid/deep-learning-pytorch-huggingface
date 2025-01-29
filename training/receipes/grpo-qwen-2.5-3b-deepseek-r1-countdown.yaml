@@ -26,9 +26,10 @@ warmup_ratio: 0.03
 # GRPO specific parameters
 beta: 0.04 # as in the deepseek math paper
 max_prompt_length: 256
-max_completion_length: 768
+max_completion_length: 1024
 num_generations: 8
 use_vllm: true
+vllm_device: "cuda:3"
 vllm_gpu_memory_utilization: 0.5
 
 # Logging arguments
