@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --ntasks-per-node=1
-#SBATCH --gres=gpu:8
+#SBATCH --gres=gpu:4
 #SBATCH --qos=high
 #SBATCH --partition=hopper-prod  # Adjust this for your cluster
 #SBATCH --output=/fsx/philipp/logs/%x-%j.out # Adjust this for your cluster
