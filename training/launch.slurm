@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH --ntasks-per-node=1
+#SBATCH --nodes=1
 #SBATCH --gres=gpu:4
 #SBATCH --qos=high
 #SBATCH --partition=hopper-prod  # Adjust this for your cluster
@@ -31,6 +32,7 @@ export CMD=" \
     "
 
 export LAUNCHER="HF_HUB_ENABLE_HF_TRANSFER=1 ACCELERATE_LOG_LEVEL=info TRANSFORMERS_VERBOSITY=info accelerate launch \
+   --config_file configs/accelerate_configs/deepspeed_zero3.yaml \
    --num_machines $NUM_NODES \
    --num_processes $NUM_GPUS_FOR_TRAINING \
    --main_process_ip $MASTER_ADDR \
